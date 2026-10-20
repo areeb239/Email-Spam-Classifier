@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Spam Prediction // Professional Security Console</title>
+    <meta name="description" content="Professional Email Spam Predictor UI - Real-time machine learning email security pipeline, risk scoring, and trigger detection.">
+
+    <!-- Modern Typography: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <div class="brand-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="18" height="18" x="3" y="3" rx="4"/>
+                        <path d="m9 12 2 2 4-4"/>
+                    </svg>
+                </div>
+                <div class="brand-titles">
+                    <span class="brand-name">SpamShield</span>
+                    <span class="brand-sub">Security Console</span>
+                </div>
+            </div>
+
+            <div class="nav-actions">
+                <div class="status-indicator-pill" id="engineStatusPill" title="Backend ML API Status">
+                    <span class="status-ping" id="statusPing"></span>
+                    <span class="status-label" id="statusLabel">Checking ML Engine...</span>
+                </div>
+                <button class="nav-link-btn" id="openDevModalBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 18 22 12 16 6"/>
+                        <polyline points="8 6 2 12 8 18"/>
+                    </svg>
+                    Developer &amp; Java API
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Wrapper -->
+    <main class="page-body">
+        <div class="content-container">
+
+            <!-- Hero Title Area -->
+            <section class="hero-section">
+                <div class="hero-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    <span>AI Email Security Scanner</span>
+                </div>
+                <h1 class="hero-title">Email spam prediction</h1>
+                <p class="hero-description">Paste an email below to evaluate using our machine learning pipeline. It evaluates spam risk, key triggers, and delivery confidence.</p>
+            </section>
+
+            <!-- 2-Column Grid: Form & Results -->
+            <div class="workspace-grid">
+
+                <!-- Left Column: Input Form -->
+                <section class="panel-card form-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2 class="panel-title">Email content</h2>
+                            <p class="panel-subtitle">Enter the raw message details you wish to evaluate</p>
+                        </div>
+
+                        <!-- Sample Dropdown Trigger -->
+                        <div class="sample-dropdown-wrapper">
+                            <button class="sample-trigger-btn" id="sampleDropdownBtn">
+                                <span>Load sample</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </button>
+                            <div class="sample-menu" id="sampleMenu">
+                                <button class="sample-item" data-sample="spam-walmart">
+                                    <span class="sample-pill spam">Spam</span>
+                                    <span class="sample-item-text">$1,000 Walmart Gift Card</span>
+                                </button>
+                                <button class="sample-item" data-sample="spam-bank">
+                                    <span class="sample-pill spam">Spam</span>
+                                    <span class="sample-item-text">Urgent Account Suspension</span>
+                                </button>
+                                <button class="sample-item" data-sample="ham-meeting">
+                                    <span class="sample-pill ham">Ham</span>
+                                    <span class="sample-item-text">Sprint Planning Meeting</span>
+                                </button>
+                                <button class="sample-item" data-sample="ham-delivery">
+                                    <span class="sample-pill ham">Ham</span>
+                                    <span class="sample-item-text">Amazon Order Confirmation</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="emailForm" onsubmit="return false;">
+                        <!-- Sender Field -->
+                        <div class="field-group">
+                            <div class="field-label-row">
+                                <label for="senderInput" class="field-label">Sender address</label>
+                                <span class="field-optional">(Optional)</span>
+                            </div>
+                            <input 
+                                type="text" 
+                                id="senderInput" 
+                                class="text-input" 
+                                placeholder="e.g. alert@promotion-reward-center.com" 
+                                spellcheck="false"
+                            />
+                        </div>
+
+                        <!-- Subject Line -->
+                        <div class="field-group">
+                            <div class="field-label-row">
+                                <label for="subjectInput" class="field-label">Subject line</label>
+                            </div>
+                            <input 
+                                type="text" 
+                                id="subjectInput" 
+                                class="text-input" 
+                                placeholder="e.g. Claim your complimentary $1,000 Walmart Gift Card Now!" 
+                                spellcheck="false"
+                            />
+                        </div>
+
+                        <!-- Email Body Field -->
+                        <div class="field-group">
+                            <div class="field-label-row">
+                                <label for="bodyInput" class="field-label">Email body</label>
+                            </div>
+                            <textarea 
+                                id="bodyInput" 
+                                class="text-area" 
+                                rows="8" 
+                                placeholder="Type or paste the email body text here... (Ctrl + Enter to analyze)"
+                                spellcheck="false"
+                            ></textarea>
+                            
+                            <!-- Word/Character Counter -->
+                            <div class="textarea-metrics">
+                                <span class="metric-text"><span id="charCount">0</span> characters</span>
+                                <span class="metric-text"><span id="wordCount">0</span> words</span>
+                            </div>
+                        </div>
+
+                        <!-- Form Action Buttons -->
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" id="clearFormBtn">Clear form</button>
+                            <button type="button" class="btn btn-primary" id="analyzeBtn">
+                                <span class="btn-text">Analyze email</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                                    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Right Column: Prediction Results -->
+                <section class="panel-card result-panel" id="resultPanel">
+                    <div class="panel-header">
+                        <div>
+                            <h2 class="panel-title">Prediction</h2>
+                            <p class="panel-subtitle">Analysis results based on current model output</p>
+                        </div>
+                    </div>
+
+                    <!-- Result Status Container (Idle by default) -->
+                    <div class="prediction-card-body" id="predictionBody">
+
+                        <!-- Verdict Badge & Risk Level -->
+                        <div class="verdict-status-row">
+                            <div class="status-badge" id="verdictBadge">
+                                <span class="badge-dot"></span>
+                                <span id="verdictBadgeText">Awaiting input</span>
+                            </div>
+                        </div>
+
+                        <div class="risk-level-display" id="riskLevelDisplay">
+                            <h3 class="risk-title" id="riskTitle">Ready to evaluate</h3>
+                        </div>
+
+                        <!-- Confidence Score Bar -->
+                        <div class="confidence-box">
+                            <div class="confidence-labels">
+                                <span class="conf-title">Confidence score</span>
+                                <span class="conf-percent" id="confPercent">--%</span>
+                            </div>
+                            <div class="progress-track">
+                                <div class="progress-bar" id="progressBar"></div>
+                            </div>
+                        </div>
+
+                        <!-- Key Triggers List -->
+                        <div class="triggers-section">
+                            <h4 class="triggers-heading">Key triggers</h4>
+                            <div class="triggers-list" id="triggersList">
+                                <!-- Trigger 1: Urgency -->
+                                <div class="trigger-row" id="triggerUrgency">
+                                    <div class="trigger-icon alert">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <line x1="12" y1="8" x2="12" y2="12"/>
+                                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                        </svg>
+                                    </div>
+                                    <div class="trigger-info">
+                                        <span class="trigger-name">Urgency and deadlines</span>
+                                        <span class="trigger-desc" id="urgencyDesc">No immediate urgency phrases detected</span>
+                                    </div>
+                                </div>
+
+                                <!-- Trigger 2: Financial -->
+                                <div class="trigger-row" id="triggerFinancial">
+                                    <div class="trigger-icon alert">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <line x1="12" y1="8" x2="12" y2="12"/>
+                                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                        </svg>
+                                    </div>
+                                    <div class="trigger-info">
+                                        <span class="trigger-name">Financial incentives</span>
+                                        <span class="trigger-desc" id="financialDesc">No prize or reward offers identified</span>
+                                    </div>
+                                </div>
+
+                                <!-- Trigger 3: Unverified Links -->
+                                <div class="trigger-row" id="triggerLink">
+                                    <div class="trigger-icon alert">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <line x1="12" y1="8" x2="12" y2="12"/>
+                                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                        </svg>
+                                    </div>
+                                    <div class="trigger-info">
+                                        <span class="trigger-name">Unverified links</span>
+                                        <span class="trigger-desc" id="linkDesc">No external hyperlink anomalies found</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer Note -->
+                        <div class="card-footer-note">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            <span>Model trained on over 50,000 email samples.</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Page Bottom Disclaimer -->
+            <footer class="page-footer">
+                <p>Designed for email security teams and developers. Model outputs are probabilistic and should be reviewed alongside standard security filters.</p>
+            </footer>
+        </div>
+    </main>
+
+    <!-- Developer & Java Modal -->
+    <div class="modal-overlay" id="devModal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 18 22 12 16 6"/>
+                        <polyline points="8 6 2 12 8 18"/>
+                    </svg>
+                    <h3>Developer Integration &amp; Java Client</h3>
+                </div>
+                <button class="modal-close" id="closeDevModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-tabs">
+                    <button class="tab-btn active" data-tab="javaTab">Java (HttpClient)</button>
+                    <button class="tab-btn" data-tab="jsTab">JavaScript (Fetch)</button>
+                    <button class="tab-btn" data-tab="pyTab">Python (Requests)</button>
+                    <button class="tab-btn" data-tab="curlTab">cURL</button>
+                </div>
+
+                <div class="tab-pane active" id="javaTab">
+                    <p class="tab-info">Java 11+ client that interacts with this FastAPI backend prediction API:</p>
+                    <pre><code><span class="kw">import</span> java.net.URI;
+<span class="kw">import</span> java.net.http.HttpClient;
+<span class="kw">import</span> java.net.http.HttpRequest;
+<span class="kw">import</span> java.net.http.HttpResponse;
+
+<span class="kw">public class</span> <span class="fn">SpamClassifierClient</span> {
+    <span class="kw">public static void</span> <span class="fn">main</span>(String[] args) <span class="kw">throws</span> Exception {
+        String endpoint = <span class="str">"http://127.0.0.1:8000/predict"</span>;
+        String jsonPayload = <span class="str">"{\"text\":\"Congratulations! You won $1,000 Walmart Gift Card!\"}"</span>;
+
+        HttpClient client = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(endpoint))
+            .header(<span class="str">"Content-Type"</span>, <span class="str">"application/json"</span>)
+            .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+            .build();
+
+        HttpResponse&lt;String&gt; response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        System.out.println(<span class="str">"Response: "</span> + response.body());
+    }
+}</code></pre>
+                </div>
+
+                <div class="tab-pane" id="jsTab">
+                    <p class="tab-info">Call the classifier endpoint asynchronously using JavaScript fetch:</p>
+                    <pre><code><span class="kw">async function</span> <span class="fn">classifyEmail</span>(text) {
+  <span class="kw">const</span> response = <span class="kw">await</span> fetch(<span class="str">"http://127.0.0.1:8000/predict"</span>, {
+    method: <span class="str">"POST"</span>,
+    headers: { <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span> },
+    body: JSON.stringify({ text: text })
+  });
+  <span class="kw">const</span> result = <span class="kw">await</span> response.json();
+  console.log(result); <span class="comment">// { prediction: "spam", confidence: 0.998 }</span>
+}</code></pre>
+                </div>
+
+                <div class="tab-pane" id="pyTab">
+                    <p class="tab-info">Python integration with requests:</p>
+                    <pre><code><span class="kw">import</span> requests
+
+payload = {<span class="str">"text"</span>: <span class="str">"Exclusive offer! Claim $1,000 cash bonus now."</span>}
+res = requests.post(<span class="str">"http://127.0.0.1:8000/predict"</span>, json=payload)
+print(res.json())</code></pre>
+                </div>
+
+                <div class="tab-pane" id="curlTab">
+                    <p class="tab-info">cURL command line request:</p>
+                    <pre><code>curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Claim your $1000 prize now!"}'</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
