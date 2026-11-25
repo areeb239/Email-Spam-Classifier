@@ -42,8 +42,8 @@ const EMAIL_SAMPLES = {
     },
     'ham-delivery': {
         sender: 'auto-confirm@amazon.com',
-        subject: 'Your Amazon Order #402-9812492 has shipped',
-        body: `Hello,\n\nYour package containing the requested items has shipped and is scheduled for delivery by 8:00 PM tomorrow.\n\nYou can track the shipment progress or manage your delivery preferences in the official Amazon mobile app.\n\nThank you for shopping with us.`
+        subject: 'Your Amazon order has shipped',
+        body: `Hello,\n\nYour package is on the way and will arrive tomorrow afternoon.\n\nYou can view your order details in your account.\n\nThanks for shopping with us.`
     }
 };
 
@@ -434,7 +434,7 @@ function evaluateTriggers(text, isSpam, sender = '') {
 
     // 2. Financial Incentives
     const financialRegexes = [
-        { label: 'cash amount', re: /\$\s*\d[\d,]*(?:\.\d{2})?/i },
+        { re: /\$\s*\d[\d,]*(?:\.\d{2})?/i },
         { label: 'gift card', re: /\bgift\s*card\b/i },
         { label: 'reward', re: /\brewards?\b/i },
         { label: 'cash bonus', re: /\bcash(?:\s+bonus)?\b/i },
@@ -444,7 +444,12 @@ function evaluateTriggers(text, isSpam, sender = '') {
         { label: 'free offer', re: /\bfree\s+(?:gift|offer|trial|money|card|prize)\b/i },
         { label: 'complimentary', re: /\bcomplimentary\b/i }
     ];
-    const foundFinancial = financialRegexes.filter(p => p.re.test(text)).map(p => p.label);
+    const foundFinancial = financialRegexes
+        .map(p => {
+            const match = text.match(p.re);
+            return match ? (p.label || match[0].trim()) : null;
+        })
+        .filter(Boolean);
 
     if (foundFinancial.length > 0) {
         setTriggerState(
