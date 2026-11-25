@@ -4,10 +4,8 @@
  */
 
 // Configuration
-const API_PORT = 8000;
-const API_URL = window.location.origin.includes(`:${API_PORT}`)
-    ? window.location.origin
-    : `http://127.0.0.1:${API_PORT}`;
+
+const API_URL =  "https://email-spam-classifier-iz02.onrender.com"
 
 // Sample Emails Library matching the Figma design
 const EMAIL_SAMPLES = {
