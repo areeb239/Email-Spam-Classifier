@@ -16,10 +16,21 @@ import java.time.Duration;
  */
 public class SpamClassifierClient {
 
-    private static final String API_URL = "http://127.0.0.1:8000/predict";
+    private static final String DEFAULT_API_URL = "http://127.0.0.1:8000/predict";
+    private final String apiUrl;
     private final HttpClient httpClient;
 
     public SpamClassifierClient() {
+        this(System.getenv("SPAM_API_URL") != null && !System.getenv("SPAM_API_URL").isBlank()
+                ? System.getenv("SPAM_API_URL").trim()
+                : DEFAULT_API_URL);
+    }
+
+    public SpamClassifierClient(String apiUrl) {
+        if (apiUrl == null || apiUrl.isBlank()) {
+            throw new IllegalArgumentException("API URL must not be blank");
+        }
+        this.apiUrl = apiUrl;
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofSeconds(5))
@@ -33,13 +44,17 @@ public class SpamClassifierClient {
      * @return Raw JSON response containing prediction ("spam" or "ham") and confidence score.
      */
     public String classify(String text) throws IOException, InterruptedException {
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("Input text must not be empty or blank");
+        }
+
         // Escape json characters in text string
         String escaped = escapeJson(text);
         String jsonPayload = String.format("{\"text\":\"%s\"}", escaped);
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(API_URL))
-                .timeout(Duration.ofSeconds(10))
+                .uri(URI.create(apiUrl))
+                .timeout(Duration.ofSeconds(15))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
@@ -56,17 +71,33 @@ public class SpamClassifierClient {
 
     private static String escapeJson(String input) {
         if (input == null) return "";
-        return input.replace("\\", "\\\\")
-                    .replace("\"", "\\\"")
-                    .replace("\b", "\\b")
-                    .replace("\f", "\\f")
-                    .replace("\n", "\\n")
-                    .replace("\r", "\\r")
-                    .replace("\t", "\\t");
+        StringBuilder sb = new StringBuilder(input.length() + 16);
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            switch (c) {
+                case '\\': sb.append("\\\\"); break;
+                case '"':  sb.append("\\\""); break;
+                case '\b': sb.append("\\b"); break;
+                case '\f': sb.append("\\f"); break;
+                case '\n': sb.append("\\n"); break;
+                case '\r': sb.append("\\r"); break;
+                case '\t': sb.append("\\t"); break;
+                default:
+                    if (c < 0x20 || c == 0x7F) {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+            }
+        }
+        return sb.toString();
     }
 
     public static void main(String[] args) {
-        SpamClassifierClient client = new SpamClassifierClient();
+        String targetUrl = args.length > 0 && !args[0].isBlank() ? args[0].trim() : null;
+        SpamClassifierClient client = targetUrl != null
+                ? new SpamClassifierClient(targetUrl)
+                : new SpamClassifierClient();
 
         String[] testMessages = {
             "Congratulations! You have been selected as a winner of $1,000 gift card. Call 1-800-555-0199 now!",
@@ -76,7 +107,7 @@ public class SpamClassifierClient {
 
         System.out.println("==================================================");
         System.out.println("   Spam Classifier - Java Client Demo             ");
-        System.out.println("   Target API: " + API_URL);
+        System.out.println("   Target API: " + client.apiUrl);
         System.out.println("==================================================\n");
 
         for (int i = 0; i < testMessages.length; i++) {

@@ -3,9 +3,20 @@
  * Faithful implementation of the Figma specification with live FastAPI integration.
  */
 
-// Configuration
+// Configuration: use same-origin when served by FastAPI/Render, else local backend.
+const API_URL = (() => {
+    const { protocol, hostname, port, origin } = window.location;
+    if (protocol === 'file:') {
+        return 'http://127.0.0.1:8000';
+    }
+    if (port === '8000' || (!['localhost', '127.0.0.1'].includes(hostname) && protocol.startsWith('http'))) {
+        return origin;
+    }
+    return 'http://127.0.0.1:8000';
+})();
 
-const API_URL =  "https://email-spam-classifier-iz02.onrender.com"
+const HEALTH_TIMEOUT_MS = 5000;
+const PREDICT_TIMEOUT_MS = 15000;
 
 // Sample Emails Library matching the Figma design
 const EMAIL_SAMPLES = {
@@ -44,7 +55,6 @@ const clearFormBtn = document.getElementById('clearFormBtn');
 const analyzeBtn = document.getElementById('analyzeBtn');
 
 const resultPanel = document.getElementById('resultPanel');
-const verdictBadge = document.getElementById('verdictBadge');
 const verdictBadgeText = document.getElementById('verdictBadgeText');
 const riskTitle = document.getElementById('riskTitle');
 const confPercent = document.getElementById('confPercent');
@@ -56,6 +66,8 @@ const triggerFinancial = document.getElementById('triggerFinancial');
 const financialDesc = document.getElementById('financialDesc');
 const triggerLink = document.getElementById('triggerLink');
 const linkDesc = document.getElementById('linkDesc');
+const triggerSender = document.getElementById('triggerSender');
+const senderDesc = document.getElementById('senderDesc');
 
 const statusPing = document.getElementById('statusPing');
 const statusLabel = document.getElementById('statusLabel');
@@ -67,31 +79,50 @@ const devModal = document.getElementById('devModal');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabPanes = document.querySelectorAll('.tab-pane');
 
+// In-flight request tracking to prevent stale UI updates on clear/re-run
+let activeAnalyzeController = null;
+let analysisGeneration = 0;
+
+// Trigger SVG Icons
+const ICON_ALERT_SVG = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>`;
+
+const ICON_SAFE_SVG = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="m9 12 2 2 4-4"/>
+    </svg>`;
+
 // ==========================================================================
 // Initialization
 // ==========================================================================
 document.addEventListener('DOMContentLoaded', () => {
     checkEngineHealth();
     bindEvents();
-    
+
     // Preload default sample to match Figma initial visual mockup
     loadSample('spam-walmart');
     analyzeEmail();
 });
 
 function bindEvents() {
-    // Text counters
+    // Body text counters (displays character/word counts for the email body textarea)
     bodyInput.addEventListener('input', updateTextMetrics);
-    subjectInput.addEventListener('input', updateTextMetrics);
 
     // Sample dropdown toggle
     sampleDropdownBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        sampleMenu.classList.toggle('active');
+        const isOpen = sampleMenu.classList.toggle('active');
+        sampleDropdownBtn.setAttribute('aria-expanded', String(isOpen));
     });
 
     document.addEventListener('click', () => {
         sampleMenu.classList.remove('active');
+        sampleDropdownBtn.setAttribute('aria-expanded', 'false');
     });
 
     // Sample menu items
@@ -100,6 +131,7 @@ function bindEvents() {
             const key = item.getAttribute('data-sample');
             loadSample(key);
             sampleMenu.classList.remove('active');
+            sampleDropdownBtn.setAttribute('aria-expanded', 'false');
             analyzeEmail();
         });
     });
@@ -107,12 +139,19 @@ function bindEvents() {
     // Clear form
     clearFormBtn.addEventListener('click', resetForm);
 
-    // Analyze button & Shortcut
+    // Analyze button & Keyboard Shortcuts
     analyzeBtn.addEventListener('click', analyzeEmail);
     window.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            if (devModal.classList.contains('active') || analyzeBtn.disabled) {
+                return;
+            }
             e.preventDefault();
             analyzeEmail();
+        } else if (e.key === 'Escape') {
+            sampleMenu.classList.remove('active');
+            sampleDropdownBtn.setAttribute('aria-expanded', 'false');
+            devModal.classList.remove('active');
         }
     });
 
@@ -156,7 +195,34 @@ function updateTextMetrics() {
     wordCount.textContent = words;
 }
 
+function setTriggerState(rowEl, descEl, state, description) {
+    const iconEl = rowEl.querySelector('.trigger-icon');
+    descEl.textContent = description;
+
+    if (state === 'threat') {
+        rowEl.className = 'trigger-row active-threat';
+        iconEl.className = 'trigger-icon alert';
+        iconEl.innerHTML = ICON_ALERT_SVG;
+    } else if (state === 'safe') {
+        rowEl.className = 'trigger-row active-safe';
+        iconEl.className = 'trigger-icon safe';
+        iconEl.innerHTML = ICON_SAFE_SVG;
+    } else {
+        rowEl.className = 'trigger-row';
+        iconEl.className = 'trigger-icon neutral';
+        iconEl.innerHTML = ICON_ALERT_SVG;
+    }
+}
+
 function resetForm() {
+    // Cancel any in-flight prediction so it cannot overwrite the reset UI
+    analysisGeneration += 1;
+    if (activeAnalyzeController) {
+        activeAnalyzeController.abort();
+        activeAnalyzeController = null;
+    }
+    setLoadingState(false);
+
     senderInput.value = '';
     subjectInput.value = '';
     bodyInput.value = '';
@@ -168,13 +234,12 @@ function resetForm() {
     riskTitle.textContent = 'Ready to evaluate';
     confPercent.textContent = '--%';
     progressBar.style.width = '0%';
+    progressBar.style.opacity = '1';
 
-    triggerUrgency.className = 'trigger-row';
-    urgencyDesc.textContent = 'No immediate urgency phrases detected';
-    triggerFinancial.className = 'trigger-row';
-    financialDesc.textContent = 'No prize or reward offers identified';
-    triggerLink.className = 'trigger-row';
-    linkDesc.textContent = 'No external hyperlink anomalies found';
+    setTriggerState(triggerUrgency, urgencyDesc, 'neutral', 'No immediate urgency phrases detected');
+    setTriggerState(triggerFinancial, financialDesc, 'neutral', 'No prize or reward offers identified');
+    setTriggerState(triggerLink, linkDesc, 'neutral', 'No external hyperlink anomalies found');
+    setTriggerState(triggerSender, senderDesc, 'neutral', 'No sender address provided');
 
     bodyInput.focus();
 }
@@ -185,7 +250,7 @@ function resetForm() {
 async function checkEngineHealth() {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
 
         const res = await fetch(`${API_URL}/health`, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -194,7 +259,7 @@ async function checkEngineHealth() {
             statusPing.className = 'status-ping online';
             statusLabel.textContent = 'ML Engine Active';
         } else {
-            throw new Error('Non-200 status');
+            throw new Error(`HTTP ${res.status}`);
         }
     } catch (e) {
         statusPing.className = 'status-ping offline';
@@ -208,6 +273,7 @@ setInterval(checkEngineHealth, 15000);
 // Prediction & Trigger Analysis
 // ==========================================================================
 async function analyzeEmail() {
+    const sender = senderInput.value.trim();
     const subject = subjectInput.value.trim();
     const body = bodyInput.value.trim();
 
@@ -218,18 +284,25 @@ async function analyzeEmail() {
     }
 
     // Build classification text for the NLP pipeline
-    const combinedText = subject ? `${subject}. ${body}` : body;
+    const combinedText = subject && body ? `${subject}. ${body}` : (subject || body);
 
-    // Loading State
+    // Abort any earlier request and track this request's generation
+    if (activeAnalyzeController) {
+        activeAnalyzeController.abort();
+    }
+    const currentGen = ++analysisGeneration;
+    const controller = new AbortController();
+    activeAnalyzeController = controller;
+
     setLoadingState(true);
 
     try {
         let predictionResult = null;
+        let timeoutId = null;
 
         // Call FastAPI Backend
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000);
+            timeoutId = setTimeout(() => controller.abort(), PREDICT_TIMEOUT_MS);
 
             const response = await fetch(`${API_URL}/predict`, {
                 method: 'POST',
@@ -241,107 +314,193 @@ async function analyzeEmail() {
 
             if (response.ok) {
                 predictionResult = await response.json();
-                statusPing.className = 'status-ping online';
-                statusLabel.textContent = 'ML Engine Active';
+                if (currentGen === analysisGeneration) {
+                    statusPing.className = 'status-ping online';
+                    statusLabel.textContent = 'ML Engine Active';
+                }
             }
         } catch (apiError) {
+            if (timeoutId) clearTimeout(timeoutId);
+            if (currentGen !== analysisGeneration) {
+                return; // Form was cleared or a newer request superseded this one
+            }
             console.warn('API server unreachable, fallback active:', apiError);
             statusPing.className = 'status-ping offline';
             statusLabel.textContent = 'Engine Offline (Standby)';
         }
 
+        if (currentGen !== analysisGeneration) {
+            return;
+        }
+
         // If backend is offline, run intelligent heuristic simulation
         if (!predictionResult) {
-            predictionResult = simulateModelFallback(combinedText);
+            predictionResult = simulateModelFallback(combinedText, sender);
             showToast('FastAPI offline: simulated using local rule engine.');
         }
 
         // Render Verdict
-        renderVerdict(predictionResult, combinedText);
+        renderVerdict(predictionResult, combinedText, sender);
 
     } catch (err) {
+        if (currentGen !== analysisGeneration) {
+            return;
+        }
         console.error('Classification error:', err);
+        if (!resultPanel.classList.contains('state-spam') && !resultPanel.classList.contains('state-ham')) {
+            progressBar.style.width = '0%';
+        }
         showToast('An unexpected error occurred during classification.');
     } finally {
-        setLoadingState(false);
+        if (currentGen === analysisGeneration) {
+            activeAnalyzeController = null;
+            setLoadingState(false);
+        }
     }
 }
 
-function renderVerdict(result, text) {
-    const isSpam = result.prediction.toLowerCase() === 'spam';
-    const confScore = Math.round(result.confidence * 100);
+function renderVerdict(result, text, sender = '') {
+    const isSpam = String(result?.prediction || '').toLowerCase() === 'spam';
+    const rawConf = Number(result?.confidence);
+    const confScore = Number.isFinite(rawConf)
+        ? Math.max(0, Math.min(100, Math.round(rawConf * 100)))
+        : 0;
 
     // Apply Panel State
     resultPanel.className = `panel-card result-panel ${isSpam ? 'state-spam' : 'state-ham'}`;
 
-    // Verdict Badge
+    // Verdict Badge & Risk Title
     verdictBadgeText.textContent = isSpam ? 'Spam detected' : 'Safe email (Ham)';
-
-    // Risk Title
     riskTitle.textContent = isSpam ? 'High risk' : 'Low risk';
 
     // Confidence Score & Bar
     confPercent.textContent = `${confScore}%`;
     progressBar.style.width = `${confScore}%`;
 
-    // Lexical Trigger Inspection
-    evaluateTriggers(text, isSpam);
+    // Lexical & Sender Trigger Inspection
+    evaluateTriggers(text, isSpam, sender);
 }
 
-function evaluateTriggers(text, isSpam) {
-    const lower = text.toLowerCase();
-
-    // 1. Urgency & Deadlines
-    const urgencyPatterns = ['24 hours', '12 hours', 'expires', 'immediately', 'urgent', 'deadline', 'act now', 'suspended', 'locked', 'limited time'];
-    const foundUrgency = urgencyPatterns.filter(p => lower.includes(p));
+function evaluateTriggers(text, isSpam, sender = '') {
+    // 1. Urgency & Deadlines (word-boundary matches to avoid false positives like "blocked")
+    const urgencyRegexes = [
+        { label: '24 hours', re: /\b24\s*hours?\b/i },
+        { label: '12 hours', re: /\b12\s*hours?\b/i },
+        { label: 'expires', re: /\bexpires?\b/i },
+        { label: 'immediately', re: /\bimmediately\b/i },
+        { label: 'urgent', re: /\burgent(?:ly)?\b/i },
+        { label: 'deadline', re: /\bdeadline\b/i },
+        { label: 'act now', re: /\bact now\b/i },
+        { label: 'suspended', re: /\bsuspend(?:ed|sion)?\b/i },
+        { label: 'account locked', re: /\b(?:account|card(?:\s+access)?)\s+(?:has been\s+)?(?:temporarily\s+)?locked\b/i },
+        { label: 'limited time', re: /\blimited time\b/i }
+    ];
+    const foundUrgency = urgencyRegexes.filter(p => p.re.test(text)).map(p => p.label);
 
     if (foundUrgency.length > 0) {
-        triggerUrgency.className = 'trigger-row active-threat';
-        urgencyDesc.textContent = `Phrases like "${foundUrgency.slice(0, 2).join('", "')}" detected.`;
+        setTriggerState(
+            triggerUrgency,
+            urgencyDesc,
+            'threat',
+            `Phrases like "${foundUrgency.slice(0, 2).join('", "')}" detected.`
+        );
     } else {
-        triggerUrgency.className = isSpam ? 'trigger-row' : 'trigger-row active-safe';
-        urgencyDesc.textContent = isSpam ? 'Moderate urgency distribution' : 'Normal tone; no coercive urgency patterns.';
+        setTriggerState(
+            triggerUrgency,
+            urgencyDesc,
+            isSpam ? 'neutral' : 'safe',
+            isSpam ? 'Moderate urgency distribution' : 'Normal tone; no coercive urgency patterns.'
+        );
     }
 
     // 2. Financial Incentives
-    const financialPatterns = ['$1,000', '$1000', '$', 'dollar', 'gift card', 'reward', 'cash', 'prize', 'winner', 'claim your prize', 'bonus', 'free'];
-    const foundFinancial = financialPatterns.filter(p => lower.includes(p));
+    const financialRegexes = [
+        { label: 'cash amount', re: /\$\s*\d[\d,]*(?:\.\d{2})?/i },
+        { label: 'gift card', re: /\bgift\s*card\b/i },
+        { label: 'reward', re: /\brewards?\b/i },
+        { label: 'cash bonus', re: /\bcash(?:\s+bonus)?\b/i },
+        { label: 'prize', re: /\bprizes?\b/i },
+        { label: 'winner', re: /\bwinner\b/i },
+        { label: 'bonus', re: /\bbonus\b/i },
+        { label: 'free offer', re: /\bfree\s+(?:gift|offer|trial|money|card|prize)\b/i },
+        { label: 'complimentary', re: /\bcomplimentary\b/i }
+    ];
+    const foundFinancial = financialRegexes.filter(p => p.re.test(text)).map(p => p.label);
 
     if (foundFinancial.length > 0) {
-        triggerFinancial.className = 'trigger-row active-threat';
-        financialDesc.textContent = `Mentions of "${foundFinancial.slice(0, 2).join('", "')}" detected.`;
+        setTriggerState(
+            triggerFinancial,
+            financialDesc,
+            'threat',
+            `Mentions of "${foundFinancial.slice(0, 2).join('", "')}" detected.`
+        );
     } else {
-        triggerFinancial.className = isSpam ? 'trigger-row' : 'trigger-row active-safe';
-        financialDesc.textContent = isSpam ? 'No explicit financial terms' : 'Standard message without promotional offers.';
+        setTriggerState(
+            triggerFinancial,
+            financialDesc,
+            isSpam ? 'neutral' : 'safe',
+            isSpam ? 'No explicit financial terms' : 'Standard message without promotional offers.'
+        );
     }
 
     // 3. Unverified Links
-    const linkPatterns = ['http://', 'https://', '.com/', '.net/', 'click here', 'link below', 'verify-link'];
-    const hasLinks = linkPatterns.some(p => lower.includes(p));
+    const hasInsecureHttp = /\bhttp:\/\/\S+/i.test(text);
+    const hasHttpsLink = /\bhttps:\/\/\S+/i.test(text);
+    const hasActionLinkPhrase = /\b(?:click\s+(?:here|the\s+link)|link\s+below|verify-link|restore-access)\b/i.test(text);
 
-    if (hasLinks) {
-        triggerLink.className = 'trigger-row active-threat';
-        triggerLink.querySelector('.trigger-desc').textContent = lower.includes('http://')
+    if (hasInsecureHttp || hasActionLinkPhrase || (isSpam && hasHttpsLink)) {
+        const msg = hasInsecureHttp
             ? 'Insecure HTTP external hyperlink detected.'
             : 'Action-prompting external link identified.';
+        setTriggerState(triggerLink, linkDesc, 'threat', msg);
+    } else if (hasHttpsLink) {
+        setTriggerState(triggerLink, linkDesc, 'safe', 'HTTPS link present without phishing phrases.');
     } else {
-        triggerLink.className = isSpam ? 'trigger-row' : 'trigger-row active-safe';
-        triggerLink.querySelector('.trigger-desc').textContent = isSpam
-            ? 'No direct links present'
-            : 'No suspicious external hyperlinks detected.';
+        setTriggerState(
+            triggerLink,
+            linkDesc,
+            isSpam ? 'neutral' : 'safe',
+            isSpam ? 'No direct links present' : 'No suspicious external hyperlinks detected.'
+        );
+    }
+
+    // 4. Sender Reputation
+    if (!sender) {
+        setTriggerState(triggerSender, senderDesc, 'neutral', 'No sender address provided');
+    } else {
+        const senderLower = sender.toLowerCase();
+        const domain = senderLower.includes('@') ? senderLower.split('@').pop() : senderLower;
+        const suspiciousSenderRe = /\b(reward|promo|giftcard|verify|verification|deals|winner|claim)\b/i;
+        const hasManyHyphens = (domain.match(/-/g) || []).length >= 2;
+
+        if (suspiciousSenderRe.test(senderLower) || hasManyHyphens) {
+            setTriggerState(
+                triggerSender,
+                senderDesc,
+                'threat',
+                `Suspicious sender pattern in "${domain}".`
+            );
+        } else {
+            setTriggerState(
+                triggerSender,
+                senderDesc,
+                'safe',
+                `Sender domain "${domain}" has no obvious spoofing indicators.`
+            );
+        }
     }
 }
 
-function simulateModelFallback(text) {
-    const lower = text.toLowerCase();
+function simulateModelFallback(text, sender = '') {
     let spamScore = 0;
 
-    if (lower.includes('$') || lower.includes('prize') || lower.includes('winner') || lower.includes('reward')) spamScore += 0.35;
-    if (lower.includes('urgent') || lower.includes('24 hours') || lower.includes('immediately') || lower.includes('suspended')) spamScore += 0.35;
-    if (lower.includes('http://') || lower.includes('click') || lower.includes('claim')) spamScore += 0.25;
+    if (/\$\s*\d|\b(?:prize|winner|reward|gift\s*card|complimentary)\b/i.test(text)) spamScore += 0.35;
+    if (/\b(?:urgent|24\s*hours|12\s*hours|immediately|suspended|locked)\b/i.test(text)) spamScore += 0.35;
+    if (/\bhttp:\/\/|\b(?:click\s+(?:here|the\s+link)|claim\s+your)\b/i.test(text)) spamScore += 0.25;
+    if (sender && /\b(reward|promo|giftcard|verification|deals)\b/i.test(sender)) spamScore += 0.15;
 
     const isSpam = spamScore >= 0.45;
-    const confidence = isSpam ? Math.min(0.99, 0.70 + spamScore * 0.3) : 0.98;
+    const confidence = isSpam ? Math.min(0.99, 0.70 + spamScore * 0.25) : 0.98;
 
     return {
         prediction: isSpam ? 'spam' : 'ham',
@@ -375,8 +534,11 @@ function showToast(msg) {
             <line x1="12" y1="8" x2="12" y2="12"></line>
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
-        <span>${msg}</span>
     `;
+    const span = document.createElement('span');
+    span.textContent = msg;
+    toast.appendChild(span);
+
     container.appendChild(toast);
     setTimeout(() => {
         toast.style.opacity = '0';

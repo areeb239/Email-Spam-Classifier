@@ -8,34 +8,34 @@ Assumes a single pickle file containing a full sklearn Pipeline
     joblib.dump(pipeline, "model.pkl")
 
 Run locally with:
-    uvicorn app:app --reload
+    uvicorn bacend:app --reload
 
 Then open http://127.0.0.1:8000/docs to test it interactively.
 """
 
+import os
 import string
 import sys
 
 import joblib
 import nltk
 import pandas as pd
-import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-MODEL_PATH = "spam_model.pkl"  # matches joblib.dump(grid.best_estimator_, "spam_model.pkl")
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(_CURRENT_DIR, "spam_model.pkl")  # matches joblib.dump(grid.best_estimator_, "spam_model.pkl")
 
 # --- make sure required NLTK data is available ---
 for resource in ("punkt", "punkt_tab", "stopwords"):
     try:
         nltk.data.find(f"tokenizers/{resource}" if "punkt" in resource else f"corpora/{resource}")
     except LookupError:
-        nltk.download(resource)
+        nltk.download(resource, quiet=True)
 
 STOPWORDS = set(stopwords.words("english"))
 ps = PorterStemmer()
@@ -83,13 +83,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Mount current directory for static files (css, js, images)
-_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- load the trained pipeline once, at startup ---
 model = joblib.load(MODEL_PATH)
@@ -98,6 +95,13 @@ model = joblib.load(MODEL_PATH)
 # --- request/response schemas ---
 class PredictRequest(BaseModel):
     text: str = Field(..., min_length=1, description="The email/SMS text to classify")
+
+    @field_validator("text")
+    @classmethod
+    def validate_non_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Text must not be empty or whitespace only.")
+        return value
 
 
 class PredictResponse(BaseModel):
@@ -118,7 +122,7 @@ def serve_css():
     css_path = os.path.join(_CURRENT_DIR, "style.css")
     if os.path.exists(css_path):
         return FileResponse(css_path, media_type="text/css")
-    return {"error": "style.css not found"}
+    raise HTTPException(status_code=404, detail="style.css not found")
 
 
 @app.get("/script.js")
@@ -126,7 +130,12 @@ def serve_js():
     js_path = os.path.join(_CURRENT_DIR, "script.js")
     if os.path.exists(js_path):
         return FileResponse(js_path, media_type="application/javascript")
-    return {"error": "script.js not found"}
+    raise HTTPException(status_code=404, detail="script.js not found")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
 
 
 @app.get("/health")
@@ -137,7 +146,7 @@ def health():
 
 @app.post("/predict", response_model=PredictResponse)
 def predict(request: PredictRequest):
-    text = request.text
+    text = request.text.strip()
 
     # the pipeline's ColumnTransformer expects a DataFrame with these exact
     # columns: Text, num_chara, num_words, num_sentences (see training script)
@@ -148,14 +157,20 @@ def predict(request: PredictRequest):
         "num_sentences": [len(nltk.sent_tokenize(text))],
     })
 
-    prediction = model.predict(input_df)[0]
-
-    # if the model supports predict_proba, use it for a confidence score
-    if hasattr(model, "predict_proba"):
+    # Run predict_proba once when supported so preprocessing is not duplicated
+    # and the returned confidence matches the chosen class.
+    if hasattr(model, "predict_proba") and hasattr(model, "classes_"):
         probabilities = model.predict_proba(input_df)[0]
-        confidence = float(max(probabilities))
+        best_idx = int(probabilities.argmax())
+        prediction = model.classes_[best_idx]
+        confidence = float(probabilities[best_idx])
     else:
-        confidence = 1.0  # fallback if the model has no probability output
+        prediction = model.predict(input_df)[0]
+        if hasattr(model, "predict_proba"):
+            probabilities = model.predict_proba(input_df)[0]
+            confidence = float(max(probabilities))
+        else:
+            confidence = 1.0  # fallback if the model has no probability output
 
     label = "spam" if str(prediction).lower() in ("1", "spam") else "ham"
 
@@ -164,5 +179,7 @@ def predict(request: PredictRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting Spam Classifier API on http://127.0.0.1:8000 ...")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "8000"))
+    print(f"Starting Spam Classifier API on http://{host}:{port} ...")
+    uvicorn.run(app, host=host, port=port)

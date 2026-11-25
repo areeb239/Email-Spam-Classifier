@@ -35,7 +35,7 @@
                     <span class="status-ping" id="statusPing"></span>
                     <span class="status-label" id="statusLabel">Checking ML Engine...</span>
                 </div>
-                <button class="nav-link-btn" id="openDevModalBtn">
+                <button type="button" class="nav-link-btn" id="openDevModalBtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="16 18 22 12 16 6"/>
                         <polyline points="8 6 2 12 8 18"/>
@@ -75,26 +75,26 @@
 
                         <!-- Sample Dropdown Trigger -->
                         <div class="sample-dropdown-wrapper">
-                            <button class="sample-trigger-btn" id="sampleDropdownBtn">
+                            <button type="button" class="sample-trigger-btn" id="sampleDropdownBtn" aria-haspopup="true" aria-expanded="false">
                                 <span>Load sample</span>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="6 9 12 15 18 9"/>
                                 </svg>
                             </button>
                             <div class="sample-menu" id="sampleMenu">
-                                <button class="sample-item" data-sample="spam-walmart">
+                                <button type="button" class="sample-item" data-sample="spam-walmart">
                                     <span class="sample-pill spam">Spam</span>
                                     <span class="sample-item-text">$1,000 Walmart Gift Card</span>
                                 </button>
-                                <button class="sample-item" data-sample="spam-bank">
+                                <button type="button" class="sample-item" data-sample="spam-bank">
                                     <span class="sample-pill spam">Spam</span>
                                     <span class="sample-item-text">Urgent Account Suspension</span>
                                 </button>
-                                <button class="sample-item" data-sample="ham-meeting">
+                                <button type="button" class="sample-item" data-sample="ham-meeting">
                                     <span class="sample-pill ham">Ham</span>
                                     <span class="sample-item-text">Sprint Planning Meeting</span>
                                 </button>
-                                <button class="sample-item" data-sample="ham-delivery">
+                                <button type="button" class="sample-item" data-sample="ham-delivery">
                                     <span class="sample-pill ham">Ham</span>
                                     <span class="sample-item-text">Amazon Order Confirmation</span>
                                 </button>
@@ -206,7 +206,7 @@
                             <div class="triggers-list" id="triggersList">
                                 <!-- Trigger 1: Urgency -->
                                 <div class="trigger-row" id="triggerUrgency">
-                                    <div class="trigger-icon alert">
+                                    <div class="trigger-icon neutral">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                             <circle cx="12" cy="12" r="10"/>
                                             <line x1="12" y1="8" x2="12" y2="12"/>
@@ -221,7 +221,7 @@
 
                                 <!-- Trigger 2: Financial -->
                                 <div class="trigger-row" id="triggerFinancial">
-                                    <div class="trigger-icon alert">
+                                    <div class="trigger-icon neutral">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                             <circle cx="12" cy="12" r="10"/>
                                             <line x1="12" y1="8" x2="12" y2="12"/>
@@ -236,7 +236,7 @@
 
                                 <!-- Trigger 3: Unverified Links -->
                                 <div class="trigger-row" id="triggerLink">
-                                    <div class="trigger-icon alert">
+                                    <div class="trigger-icon neutral">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                             <circle cx="12" cy="12" r="10"/>
                                             <line x1="12" y1="8" x2="12" y2="12"/>
@@ -246,6 +246,21 @@
                                     <div class="trigger-info">
                                         <span class="trigger-name">Unverified links</span>
                                         <span class="trigger-desc" id="linkDesc">No external hyperlink anomalies found</span>
+                                    </div>
+                                </div>
+
+                                <!-- Trigger 4: Sender Verification -->
+                                <div class="trigger-row" id="triggerSender">
+                                    <div class="trigger-icon neutral">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <line x1="12" y1="8" x2="12" y2="12"/>
+                                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                        </svg>
+                                    </div>
+                                    <div class="trigger-info">
+                                        <span class="trigger-name">Sender reputation</span>
+                                        <span class="trigger-desc" id="senderDesc">No sender address provided</span>
                                     </div>
                                 </div>
                             </div>
@@ -281,14 +296,14 @@
                     </svg>
                     <h3>Developer Integration &amp; Java Client</h3>
                 </div>
-                <button class="modal-close" id="closeDevModalBtn">&times;</button>
+                <button type="button" class="modal-close" id="closeDevModalBtn" aria-label="Close modal">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="modal-tabs">
-                    <button class="tab-btn active" data-tab="javaTab">Java (HttpClient)</button>
-                    <button class="tab-btn" data-tab="jsTab">JavaScript (Fetch)</button>
-                    <button class="tab-btn" data-tab="pyTab">Python (Requests)</button>
-                    <button class="tab-btn" data-tab="curlTab">cURL</button>
+                    <button type="button" class="tab-btn active" data-tab="javaTab">Java (HttpClient)</button>
+                    <button type="button" class="tab-btn" data-tab="jsTab">JavaScript (Fetch)</button>
+                    <button type="button" class="tab-btn" data-tab="pyTab">Python (Requests)</button>
+                    <button type="button" class="tab-btn" data-tab="curlTab">cURL</button>
                 </div>
 
                 <div class="tab-pane active" id="javaTab">

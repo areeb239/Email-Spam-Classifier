@@ -653,14 +653,25 @@ body {
     margin-top: 1px;
 }
 
+.trigger-icon.neutral {
+    background: var(--bg-subtle);
+    color: var(--text-muted);
+}
+
 .trigger-icon.alert {
     background: #fee2e2;
     color: #ef4444;
 }
 
-.trigger-row.active-safe .trigger-icon.alert {
+.trigger-icon.safe,
+.trigger-row.active-safe .trigger-icon {
     background: #dcfce7;
     color: #22c55e;
+}
+
+.trigger-row.active-threat .trigger-icon {
+    background: #fee2e2;
+    color: #ef4444;
 }
 
 .trigger-info {
@@ -862,4 +873,22 @@ pre {
 @keyframes slideToast {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
+}
+
+@media (max-width: 600px) {
+    .nav-container {
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 12px 16px;
+    }
+
+    .nav-actions {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+
+    .panel-header {
+        flex-wrap: wrap;
+    }
 }
