@@ -889,8 +889,27 @@ pre {
         flex-wrap: wrap;
     }
 
+    .page-body {
+        padding: 24px 16px 40px;
+    }
+
+    .panel-card {
+        padding: 20px;
+    }
+
     .panel-header {
-        flex-wrap: wrap;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sample-dropdown-wrapper {
+        align-self: flex-start;
+    }
+
+    .sample-menu {
+        left: 0;
+        right: auto;
+        width: min(270px, calc(100vw - 72px));
     }
 
     .modal-header {
