@@ -4,15 +4,20 @@
  */
 
 // Configuration: use same-origin when served by FastAPI/Render, else local backend.
+const RENDER_API_URL = 'https://email-spam-classifier-iz02.onrender.com';
 const API_URL = (() => {
     const { protocol, hostname, port, origin } = window.location;
     if (protocol === 'file:') {
         return 'http://127.0.0.1:8000';
     }
-    if (port === '8000' || (!['localhost', '127.0.0.1'].includes(hostname) && protocol.startsWith('http'))) {
+    if (port === '8000' || hostname.endsWith('.onrender.com')) {
         return origin;
     }
-    return 'http://127.0.0.1:8000';
+    if (['localhost', '127.0.0.1'].includes(hostname)) {
+        return 'http://127.0.0.1:8000';
+    }
+    // Static hosts (e.g. GitHub Pages) point to the deployed Render backend.
+    return RENDER_API_URL;
 })();
 
 const HEALTH_TIMEOUT_MS = 5000;
@@ -101,6 +106,7 @@ const ICON_SAFE_SVG = `
 // Initialization
 // ==========================================================================
 document.addEventListener('DOMContentLoaded', () => {
+    syncDeveloperSnippets();
     checkEngineHealth();
     bindEvents();
 
@@ -108,6 +114,19 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSample('spam-walmart');
     analyzeEmail();
 });
+
+function syncDeveloperSnippets() {
+    const predictUrl = `${API_URL}/predict`;
+    document.querySelectorAll('#devModal pre code').forEach(codeEl => {
+        const walker = document.createTreeWalker(codeEl, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) {
+            if (node.nodeValue.includes('http://127.0.0.1:8000/predict')) {
+                node.nodeValue = node.nodeValue.replace(/http:\/\/127\.0\.0\.1:8000\/predict/g, predictUrl);
+            }
+        }
+    });
+}
 
 function bindEvents() {
     // Body text counters (displays character/word counts for the email body textarea)
@@ -526,6 +545,13 @@ function setLoadingState(loading) {
 // ==========================================================================
 function showToast(msg) {
     const container = document.getElementById('toastContainer');
+    // Replace any existing identical toast so rapid retries do not stack
+    container.querySelectorAll('.toast').forEach(existing => {
+        if (existing.textContent.trim() === msg) {
+            existing.remove();
+        }
+    });
+
     const toast = document.createElement('div');
     toast.className = 'toast';
     toast.innerHTML = `

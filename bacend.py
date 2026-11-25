@@ -109,7 +109,7 @@ class PredictResponse(BaseModel):
     confidence: float        # probability of the predicted class
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     index_path = os.path.join(_CURRENT_DIR, "index.html")
     if os.path.exists(index_path):
@@ -117,7 +117,7 @@ def root():
     return {"status": "ok", "message": "Spam classifier API is running"}
 
 
-@app.get("/style.css")
+@app.api_route("/style.css", methods=["GET", "HEAD"])
 def serve_css():
     css_path = os.path.join(_CURRENT_DIR, "style.css")
     if os.path.exists(css_path):
@@ -125,7 +125,7 @@ def serve_css():
     raise HTTPException(status_code=404, detail="style.css not found")
 
 
-@app.get("/script.js")
+@app.api_route("/script.js", methods=["GET", "HEAD"])
 def serve_js():
     js_path = os.path.join(_CURRENT_DIR, "script.js")
     if os.path.exists(js_path):
@@ -138,7 +138,7 @@ def favicon():
     return Response(status_code=204)
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     """Simple health check endpoint, useful for Docker/CI/deployment checks."""
     return {"status": "healthy"}
